@@ -44,7 +44,10 @@ class ARXModel:
 
     def predict(self, y, u):
         phi, _ = self.create_regressor_matrix(y, u)
-        return phi @ self.theta
+        predictions = phi @ self.theta
+        # Pad the beginning with zeros to match input length
+        max_lag = max(self.na, self.nb)
+        return np.pad(predictions, (max_lag, 0))
 
 
 class ARMAXModel:
@@ -187,8 +190,8 @@ plt.grid(True)
 
 # Plot 3: Error Distributions
 plt.subplot(313)
-plt.hist(y_test[max_lag:-2] - y_pred_arx[max_lag:], bins=50, color='r', alpha=0.5, label='ARX', density=True)
-plt.hist(y_test[max_lag:-2] - y_pred_armax[max_lag:], bins=50, color='b', alpha=0.5, label='ARMAX', density=True)
+plt.hist(y_test[max_lag:] - y_pred_arx[max_lag:], bins=50, color='r', alpha=0.5, label='ARX', density=True)
+plt.hist(y_test[max_lag:] - y_pred_armax[max_lag:], bins=50, color='b', alpha=0.5, label='ARMAX', density=True)
 plt.legend()
 plt.title('Error Distributions')
 plt.grid(True)

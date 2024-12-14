@@ -72,17 +72,22 @@ class ARMAXModel:
 
         # Extract parameters
         a_params = params[:na]
-        b_params = params[na:na+nb]
-        c_params = params[na+nb:]
+        b_params = params[na:na + nb]
+        c_params = params[na + nb:]
 
         # Initial conditions
         y_pred[:max(na, nb)] = y[:max(na, nb)]
 
         # Simulate system
         for k in range(max(na, nb, nc), N):
-            y_pred[k] = -np.sum(a_params * y_pred[k-1:k-na-1:-1]) + \
-                        np.sum(b_params * u[k-1:k-nb-1:-1]) + \
-                        np.sum(c_params * e[k-1:k-nc-1:-1])
+            # Fix the array slicing to ensure correct indexing
+            y_hist = y_pred[k - na:k][::-1]
+            u_hist = u[k - nb:k][::-1]
+            e_hist = e[k - nc:k][::-1]
+
+            y_pred[k] = -np.sum(a_params * y_hist) + \
+                        np.sum(b_params * u_hist) + \
+                        np.sum(c_params * e_hist)
             e[k] = y[k] - y_pred[k]
 
         return y_pred, e
@@ -107,6 +112,8 @@ class ARMAXModel:
         return self
 
     def predict(self, y, u):
+        if self.theta is None:
+            raise ValueError("Model must be fitted before making predictions")
         y_pred, _ = self.simulate(self.theta, y, u)
         return y_pred
 
@@ -127,9 +134,15 @@ def calculate_fit(y_true, y_pred):
     return (1 - np.linalg.norm(y_true - y_pred) /
             np.linalg.norm(y_true - np.mean(y_true))) * 100
 
+
 def calculate_metrics(y_true, y_pred):
     """Calculate multiple performance metrics."""
-    mse = np.mean((y_true - y_pred)**2)
+    # Ensure equal lengths by using the shorter length
+    min_len = min(len(y_true), len(y_pred))
+    y_true = y_true[:min_len]
+    y_pred = y_pred[:min_len]
+
+    mse = np.mean((y_true - y_pred) ** 2)
     fit = calculate_fit(y_true, y_pred)
     return {
         'MSE': mse,
@@ -149,30 +162,36 @@ print("\nARMAX Model Performance:")
 for metric, value in armax_metrics.items():
     print(f"{metric}: {value:.4f}")
 
+# Ensure all arrays have same length for plotting
+min_len = min(len(y_val), len(y_pred_arx), len(y_pred_armax))
+y_val_plot = y_val[:min_len]
+y_pred_arx_plot = y_pred_arx[:min_len]
+y_pred_armax_plot = y_pred_armax[:min_len]
+
 # Plotting
 plt.figure(figsize=(15, 10))
 
 # Plot 1: Validation Data and Predictions
 plt.subplot(3, 1, 1)
-plt.plot(y_val, 'k-', label='True', alpha=0.7)
-plt.plot(y_pred_arx, 'r--', label='ARX', alpha=0.7)
-plt.plot(y_pred_armax, 'b--', label='ARMAX', alpha=0.7)
+plt.plot(y_val_plot, 'k-', label='True', alpha=0.7)
+plt.plot(y_pred_arx_plot, 'r--', label='ARX', alpha=0.7)
+plt.plot(y_pred_armax_plot, 'b--', label='ARMAX', alpha=0.7)
 plt.legend()
 plt.title('Model Predictions vs True Output')
 plt.grid(True)
 
 # Plot 2: Prediction Errors
 plt.subplot(3, 1, 2)
-plt.plot(y_val - y_pred_arx, 'r-', label='ARX', alpha=0.7)
-plt.plot(y_val - y_pred_armax, 'b-', label='ARMAX', alpha=0.7)
+plt.plot(y_val_plot - y_pred_arx_plot, 'r-', label='ARX', alpha=0.7)
+plt.plot(y_val_plot - y_pred_armax_plot, 'b-', label='ARMAX', alpha=0.7)
 plt.legend()
 plt.title('Prediction Errors')
 plt.grid(True)
 
 # Plot 3: Error Distributions
 plt.subplot(3, 1, 3)
-plt.hist(y_val - y_pred_arx, bins=50, color='r', alpha=0.5, label='ARX', density=True)
-plt.hist(y_val - y_pred_armax, bins=50, color='b', alpha=0.5, label='ARMAX', density=True)
+plt.hist(y_val_plot - y_pred_arx_plot, bins=50, color='r', alpha=0.5, label='ARX', density=True)
+plt.hist(y_val_plot - y_pred_armax_plot, bins=50, color='b', alpha=0.5, label='ARMAX', density=True)
 plt.legend()
 plt.title('Error Distributions')
 plt.grid(True)
